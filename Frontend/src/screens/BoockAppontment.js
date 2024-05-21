@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -9,132 +10,212 @@ import {
     ScrollView,
     SafeAreaView,
 } from 'react-native';
-import React, { useState, useEffect } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { NavigationContainer, useRoute } from '@react-navigation/native';
 import Header from '../components/Header';
 import CommonBtn from '../components/CommonBtn';
-import { FlatList } from 'react-native';
+import Toast from 'react-native-toast-message';
+
 const BookAppointment = ({ navigation }) => {
-    const [selectedSlot, setSelectedSlot] = useState(0);
+    const route = useRoute();
+    const { medecin } = route.params;
+    const [selectedDay, setSelectedDay] = useState(new Date());
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
+    const [selectedTime, setSelectedTime] = useState(new Date());
     const [isNewPatient, setIsNewPatient] = useState(false);
-    const [selectedDay, setSelectedDay] = useState(-1);
+    const [patientCin, setPatientCin] = useState('');
     const [patientInfo, setPatientInfo] = useState({
-        name: '',
-        phone: '',
-        email: ''
+        cin: '',
+        nomPrenom: '',
+        telephone: '',
+        emaill: '',
+        sexe: '',
+        dateNaissance: '',
+        address: '',
+        notifier: [],
     });
 
-    const handleInputChange = (field, value) => {
-        setPatientInfo({
-            ...patientInfo,
-            [field]: value
-        });
-    };
-    const [days, setDays] = useState([]);
+    const [secretaire, setSecretaire] = useState(null);
 
     useEffect(() => {
-        DaysList = [];
-        for (let i = 1; i <= getDays(new Date().getMonth() + 1); i++) {
-            DaysList.push({ day: i, selected: false });
+        const fetchSecretaire = async () => {
+            try {
+                const response = await fetch(`http://192.168.1.15:5000/getAidesByMedecinId/${medecin._id}`);
+                const aides = await response.json();
+                if (aides.length > 0) {
+                    setSecretaire(aides); // Assume there's only one secretary for simplicity
+                }
+            } catch (error) {
+                console.error("Error fetching secretary:", error);
+            }
+        };
+
+        fetchSecretaire();
+    }, [medecin]);
+
+    const handleInputChange = (field, value) => {
+        if (field === 'sms' || field === 'email' || field === 'appel') {
+            // Si le champ correspond à une option de notification, mettez à jour le tableau de notification
+            setPatientInfo(prevState => ({
+                ...prevState,
+                notifier: value ? [...prevState.notifier, field] : prevState.notifier.filter(option => option !== field)
+            }));
+        } else {
+            // Sinon, mettez à jour les autres champs normalement
+            setPatientInfo({
+                ...patientInfo,
+                [field]: value
+            });
         }
-        setDays(DaysList);
-    }, []);
-    const getDays = month => {
-        let days = 0;
-        if (month == 1) {
-            days = 31;
-        } else if (month == 2) {
-            days = 28;
-        } else if (month == 3) {
-            days = 31;
-        } else if (month == 4) {
-            days = 30;
-        } else if (month == 5) {
-            days = 31;
-        } else if (month == 6) {
-            days = 30;
-        } else if (month == 7) {
-            days = 31;
-        } else if (month == 8) {
-            days = 31;
-        } else if (month == 9) {
-            days = 30;
-        } else if (month == 10) {
-            days = 31;
-        } else if (month == 11) {
-            days = 30;
-        } else if (month == 12) {
-            days = 31;
-        }
-        return days;
     };
+
+    const onChangeDate = (event, selectedDate) => {
+        const currentDate = selectedDate || selectedDay;
+        setShowDatePicker(false);
+        setSelectedDay(currentDate);
+    };
+
+    const onChangeTime = (event, selectedDate) => {
+        const currentTime = selectedDate || selectedTime;
+        setShowTimePicker(false);
+        setSelectedTime(currentTime);
+    };
+
+    const handleBookAppointment = async () => {
+        // Check if all required fields are filled
+        const requiredFields = ['cin', 'nomPrenom', 'telephone', 'emaill', 'sexe', 'dateNaissance', 'address'];
+        const isAllFieldsFilled = requiredFields.every(field => patientInfo[field]);
+        if (isNewPatient && !isAllFieldsFilled) {
+            Toast.show({
+                type: 'error',
+                text2: 'Veuillez remplir tous les champs obligatoires.'
+            });
+            return;
+        }
+    
+        if (!secretaire || secretaire.length === 0) {
+            alert('Aucun secrétaire associé à ce médecin.');
+            return;
+        }
+    
+        // Map secretary IDs from secretaire array
+        const aidesIds = secretaire.map(sec => sec._id);
+    
+        // Prepare appointment data
+        const appointmentData = {
+            date: selectedDay,
+            time: selectedTime.toLocaleTimeString(),
+            medecin: medecin._id,
+            secretaire: aidesIds,
+        };
+    
+        if (isNewPatient) {
+            appointmentData.patient = patientInfo;
+        } else {
+            appointmentData.cin = patientCin;
+        }
+    
+        console.log('Données envoyées au backend :', appointmentData);
+    
+        try {
+            const response = await fetch(
+              isNewPatient 
+                ? 'http://192.168.1.15:5000/creerrendezvous' 
+                : 'http://192.168.1.15:5000/createRendezVousCin',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(appointmentData),
+              }
+            );
+        
+            const responseData = await response.json();
+        
+            if (response.ok) {
+              navigation.navigate('Success');
+            } else {
+              if (isNewPatient && responseData.error && responseData.error.includes('CIN')) {
+                Toast.show({
+                  type: 'error',
+                  text1: 'Un patient avec ce CIN existe déjà.',
+                });
+              } else if (responseData.error && responseData.error.includes('EMAIL')) {
+                Toast.show({
+                  type: 'error',
+                  text1: 'Un patient avec cet email existe déjà.',
+                });
+              }else if (responseData.error && responseData.error.includes('Format d\'email invalide')) {
+                Toast.show({
+                  type: 'error',
+                  text1: 'Le format de l\'email est invalide.',
+                });
+              } else if (responseData.error && responseData.error.includes('CIN n\'existe pas')) {
+                Toast.show({
+                  type: 'error',
+                  text1: 'Le patient avec ce CIN n\'existe pas.',
+                });
+              } else {
+                Toast.show({
+                  type: 'error',
+                  text1: responseData.error || 'Erreur lors de la réservation du rendez-vous. Veuillez réessayer.',
+                });
+              }
+            }
+          } catch (error) {
+            Toast.show({
+              type: 'error',
+              text1: 'Erreur lors de la réservation du rendez-vous. Veuillez réessayer.',
+            });
+          }
+        };
+        
+      
+    
+
 
     return (
         <ScrollView>
             <SafeAreaView style={styles.container}>
                 <Header
                     icon={require('../image/back.png')}
-                    onPress={() => navigation.navigate('Home')} // Utilisez une fonction pour appeler navigation.navigate
+                    onPress={() => navigation.navigate('Home')}
                     title={'Rendez-Vous 📅 '}
                 />
-                <Image source={require('../image/doctor.png')} style={styles.docImg} />
-                <Text style={styles.name}>Docteur Sami</Text>
-                <Text style={styles.spcl}>Docteur de dermotologie</Text>
-                <Text style={styles.heading}> Planifiez Votre Rendez-vous</Text>
-                <View style={{ marginTop: 20 }}>
-                    <FlatList
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        data={days}
-                        keyExtractor={(item, index) => index.toString()} // Utilisez l'index comme clé
-                        renderItem={({ item, index }) => {
-                            return (
-                                <TouchableOpacity
-                                    key={index} // Assurez-vous d'ajouter une clé unique à chaque élément
-                                    style={{
-                                        width: 60,
-                                        height: 70,
-                                        borderRadius: 20,
-                                        justifyContent: 'center',
-                                        alignItems: 'center',
-                                        backgroundColor: selectedDay === index ? 'blue' : 'white',
-                                        borderWidth: selectedDay === index ? 0 : 1,
-                                        marginLeft: 10,
-                                    }}
-                                    onPress={() => {
-                                        if (item.day < new Date().getDate()) {
-                                            // Ajoutez votre logique ici si nécessaire
-                                        } else {
-                                            setSelectedDay(index);
-                                        }
-                                    }}>
-                                    <Text style={{ color: selectedDay === index ? '#fff' : 'blue' }}>
-                                        {item.day}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        }}
-                    />
+                <Image source={{ uri: 'http://192.168.1.15:5000/' + medecin.image.filepath }}
+                    style={styles.docImg} />
+                <Text style={styles.name}>Dr. {medecin.user.nomPrenom}</Text>
+                <Text style={styles.spcl}>Docteur de {medecin.specialite.nom}</Text>
+                <Text style={styles.heading}>Planifiez Votre Rendez-vous</Text>
 
+                <View style={styles.datetimeContainer}>
+                    <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.datetimeButton}>
+                        <Text style={styles.datetimeText}>Sélectionner la date: {selectedDay.toLocaleDateString()}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.datetimeButton}>
+                        <Text style={styles.datetimeText}>Sélectionner l'heure: {selectedTime.toLocaleTimeString()}</Text>
+                    </TouchableOpacity>
                 </View>
-                <Text style={styles.heading}>Temps disponibles</Text>
-                <View style={styles.timeSlotsContainer}>
-                    {[...Array(6).keys()].map((index) => (
-                        <TouchableOpacity
-                            key={index}
-                            style={[
-                                styles.timeSlot,
-                                { borderColor: selectedSlot == index ? 'blue' : 'black' }
-                            ]}
-                            onPress={() => {
-                                setSelectedSlot(index);
-                            }}
-                        >
-                            <Text style={{ color: index == selectedSlot ? 'blue' : 'black' }}>
-                                {['10.00-12:00PM', '12.00-14:00PM', '14.00-16:00PM', '10.00-12:00PM', '12.00-14:00PM', '14.00-16:00PM'][index]}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
+
+                {showDatePicker && (
+                    <DateTimePicker
+                        value={selectedDay}
+                        mode="date"
+                        display="default"
+                        onChange={onChangeDate}
+                    />
+                )}
+                {showTimePicker && (
+                    <DateTimePicker
+                        value={selectedTime}
+                        mode="time"
+                        display="default"
+                        onChange={onChangeTime}
+                    />
+                )}
+
                 <Text style={styles.heading}>Coordonné Patient</Text>
                 <View style={styles.patientInfoContainer}>
                     <Text>Êtes-vous un nouveau patient?</Text>
@@ -142,93 +223,94 @@ const BookAppointment = ({ navigation }) => {
                         value={isNewPatient}
                         onValueChange={(value) => setIsNewPatient(value)}
                     />
-                    {isNewPatient ? (
-                        <View>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="CIN"
-                                value={patientInfo.cin}
-                                onChangeText={(text) => handleInputChange('cin', text)}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Nom & Prénom"
-                                value={patientInfo.name}
-                                onChangeText={(text) => handleInputChange('name', text)}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Téléphone"
-                                value={patientInfo.phone}
-                                onChangeText={(text) => handleInputChange('phone', text)}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Email"
-                                value={patientInfo.email}
-                                onChangeText={(text) => handleInputChange('email', text)}
-                            />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Date de naissance (jj/mm/aaaa)"
-                                value={patientInfo.dob}
-                                onChangeText={(text) => handleInputChange('dob', text)}
-                            />
-
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Adresse"
-                                value={patientInfo.address}
-                                onChangeText={(text) => handleInputChange('address', text)}
-                            />
-                            <View style={styles.radioContainer}>
-                                <Text>Sexe:</Text>
-                                <TouchableOpacity
-                                    style={[styles.radioButton, patientInfo.sexe === 'Homme' && styles.radioButtonSelected]}
-                                    onPress={() => handleInputChange('sexe', 'Homme')}
-                                >
-                                    <Text>Homme</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[styles.radioButton, patientInfo.sexe === 'Femme' && styles.radioButtonSelected]}
-                                    onPress={() => handleInputChange('sexe', 'Femme')}
-                                >
-                                    <Text>Femme</Text>
-                                </TouchableOpacity>
-                            </View>
-                            <View style={styles.notifyContainer}>
-                                <Text>Notifier par:</Text>
+                    <View style={styles.patientInfoContainer}>
+                        {isNewPatient ? (
+                            <>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="CIN du Patient"
+                                    value={patientInfo.cin}
+                                    onChangeText={(text) => handleInputChange('cin', text)}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Nom & Prénom"
+                                    value={patientInfo.nomPrenom}
+                                    onChangeText={(text) => handleInputChange('nomPrenom', text)}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Téléphone"
+                                    value={patientInfo.telephone}
+                                    onChangeText={(text) => handleInputChange('telephone', text)}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Email"
+                                    value={patientInfo.emaill}
+                                    onChangeText={(text) => handleInputChange('emaill', text)}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Date de naissance (jj/mm/aaaa)"
+                                    value={patientInfo.dateNaissance}
+                                    onChangeText={(text) => handleInputChange('dateNaissance', text)}
+                                />
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Adresse"
+                                    value={patientInfo.address}
+                                    onChangeText={(text) => handleInputChange('address', text)}
+                                />
+                                <View style={styles.radioContainer}>
+                                    <Text>Sexe:</Text>
+                                    <TouchableOpacity
+                                        style={[styles.radioButton, patientInfo.sexe === 'Homme' && styles.radioButtonSelected]}
+                                        onPress={() => handleInputChange('sexe', 'Homme')}
+                                    >
+                                        <Text>Homme</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.radioButton, patientInfo.sexe === 'Femme' && styles.radioButtonSelected]}
+                                        onPress={() => handleInputChange('sexe', 'Femme')}
+                                    >
+                                        <Text>Femme</Text>
+                                    </TouchableOpacity>
+                                </View>
                                 <View style={styles.notifyOptions}>
                                     <View style={styles.notifyOption}>
                                         <Text>SMS</Text>
                                         <Switch
-                                        // value={patientInfo.notifier.includes('sms')}
-                                        //  onValueChange={(checked) => handleNotifierChange('sms', checked)}
+                                            value={patientInfo.notifier.includes('sms')}
+                                            onValueChange={(checked) => handleInputChange('sms', checked)}
                                         />
                                     </View>
                                     <View style={styles.notifyOption}>
                                         <Text>Email</Text>
                                         <Switch
-                                        //  value={patientInfo.notifier.includes('email')}
-                                        // onValueChange={(checked) => handleNotifierChange('email', checked)}
+                                            value={patientInfo.notifier.includes('email')}
+                                            onValueChange={(checked) => handleInputChange('email', checked)}
                                         />
                                     </View>
                                     <View style={styles.notifyOption}>
                                         <Text>Appel</Text>
                                         <Switch
-                                        // value={patientInfo.notifier.includes('call')}
-                                        // onValueChange={(checked) => handleNotifierChange('call', checked)}
+                                            value={patientInfo.notifier.includes('appel')}
+                                            onValueChange={(checked) => handleInputChange('appel', checked)}
                                         />
                                     </View>
                                 </View>
-                            </View>
-                        </View>
-                    ) : (
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Entrez vos coordonnées"
-                        />
-                    )}
+
+                            </>
+                        ) : (
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Entrez votre CIN"
+                                value={patientCin}
+                                onChangeText={setPatientCin}
+                            />
+                        )}
+                    </View>
                 </View>
                 <View style={styles.btnView}>
                     <CommonBtn
@@ -236,12 +318,11 @@ const BookAppointment = ({ navigation }) => {
                         h={45}
                         txt={'Réserver'}
                         status={true}
-                        onClick={() => {
-                            navigation.navigate('Success');
-                        }}
+                        onClick={handleBookAppointment}
                     />
                 </View>
             </SafeAreaView>
+            <Toast />
         </ScrollView>
     );
 };
@@ -251,9 +332,11 @@ export default BookAppointment;
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff' },
     docImg: {
-        width: 100,
-        height: 100,
-        marginTop: 50,
+        width: 120,
+        height: 130,
+        marginTop: 30,
+        borderRadius: 30,
+        marginBottom: 10,
         alignSelf: 'center',
     },
     name: {
@@ -279,20 +362,19 @@ const styles = StyleSheet.create({
         marginTop: 15,
         marginLeft: 15,
     },
-    timeSlotsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-        paddingHorizontal: 15,
-    },
-    timeSlot: {
-        width: '48%',
-        height: 40,
-        borderRadius: 10,
-        borderWidth: 0.5,
-        marginVertical: 10,
-        justifyContent: 'center',
+    datetimeContainer: {
+        marginVertical: 20,
         alignItems: 'center',
+    },
+    datetimeButton: {
+        padding: 10,
+        backgroundColor: '#f2f2f2',
+        borderRadius: 10,
+        marginVertical: 5,
+    },
+    datetimeText: {
+        color: 'blue',
+        fontSize: 16,
     },
     patientInfoContainer: {
         marginHorizontal: 15,

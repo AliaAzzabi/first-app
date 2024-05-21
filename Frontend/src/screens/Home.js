@@ -1,11 +1,33 @@
 import { View, FlatList, TouchableOpacity, Text, Image, StyleSheet } from 'react-native';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import { LinearGradient } from 'expo-linear-gradient';
 import CommonBtn from '../components/CommonBtn';
 import { SafeAreaView } from 'react-native';
 
 const Home = ({ navigation }) => {
+    const [specialties, setSpecialties] = useState([]);
+    const [medecins, setMedecins] = useState([]);
+    const [selectedSpecialty, setSelectedSpecialty] = useState(null);
+
+    useEffect(() => {
+        fetch('http://192.168.1.15:5000/getAllspecialities')
+            .then(response => response.json())
+            .then(data => setSpecialties(data))
+            .catch(error => console.error('Error fetching specialties:', error));
+    }, []);
+
+    useEffect(() => {
+        fetch('http://192.168.1.15:5000/getMedecins')
+            .then(response => response.json())
+            .then(data => setMedecins(data))
+            .catch(error => console.error('Error fetching medecins:', error));
+    }, []);
+
+    const filteredMedecins = selectedSpecialty
+        ? medecins.filter(medecin => medecin.specialite.nom === selectedSpecialty)
+        : medecins;
+
     return (
         <SafeAreaView style={styles.container}>
             <Header
@@ -15,7 +37,7 @@ const Home = ({ navigation }) => {
             <FlatList
                 data={[{ type: 'banner' }, { type: 'category' }, { type: 'doctors' }]}
                 keyExtractor={(item, index) => index.toString()}
-                renderItem={({ item, index }) => {
+                renderItem={({ item }) => {
                     if (item.type === 'banner') {
                         return (
                             <View>
@@ -27,24 +49,22 @@ const Home = ({ navigation }) => {
                             <View>
                                 <Text style={styles.heading}>Selectionner Catégorie</Text>
                                 <FlatList
-                                    data={[1, 1, 1, 1, 1, 1, 1]}
+                                    data={[{ nom: 'Afficher tous' }, ...specialties]}
                                     horizontal
                                     showsHorizontalScrollIndicator={false}
-                                    renderItem={({ item, index }) => {
-                                        return (
-                                            <TouchableOpacity>
-                                                <LinearGradient
-                                                    colors={['#4facfe', '#00f2fe']}
-                                                    style={styles.linearGradient}
-                                                >
-                                                    <Text style={styles.catName}>
-                                                        {'Category ' + (index + 1)}
-                                                    </Text>
-                                                </LinearGradient>
-                                            </TouchableOpacity>
-                                        );
-                                    }}
-                                    keyExtractor={(item, index) => index.toString()}
+                                    renderItem={({ item }) => (
+                                        <TouchableOpacity onPress={() => setSelectedSpecialty(item.nom === 'Afficher tous' ? null : item.nom)}>
+                                            <LinearGradient
+                                                colors={['#4facfe', '#00f2fe']}
+                                                style={styles.linearGradient}
+                                            >
+                                                <Text style={styles.catName}>
+                                                    {item.nom}
+                                                </Text>
+                                            </LinearGradient>
+                                        </TouchableOpacity>
+                                    )}
+                                    keyExtractor={(item) => item.nom}
                                 />
                             </View>
                         );
@@ -54,24 +74,26 @@ const Home = ({ navigation }) => {
                                 <Text style={styles.heading}>Découvrez Nos Médecins</Text>
                                 <FlatList
                                     numColumns={2}
-                                    data={[1, 1, 1, 1, 1, 1, 1]}
-                                    renderItem={({ item, index }) => {
-                                        return (
-                                            <View style={styles.docItem} >
-                                                <Image source={require('../image/doctor.png')} style={styles.docImg} />
-                                                <Text style={styles.docName}>Docteur {index + 1}</Text>
-                                                <Text style={styles.docSpl}>Spécialité</Text>
-                                                <CommonBtn
-                                                    w={150}
-                                                    h={40}
-                                                    txt='Rendez-vous 📅🕒'
-                                                    onClick={() => {
-                                                        navigation.navigate('BookAppointment');
-                                                    }}
-                                                />
-                                            </View>
-                                        );
-                                    }}
+                                    data={filteredMedecins}
+                                    renderItem={({ item }) => (
+                                        <View style={styles.docItem}>
+                                            <Image
+                                                source={{ uri: 'http://192.168.1.15:5000/' + item.image.filepath }}
+                                                style={styles.docImg}
+                                            />
+                                            <Text style={styles.docName}>Dr. {item.user.nomPrenom}</Text>
+                                            <Text style={styles.docSpl}>{item.specialite.nom}</Text>
+                                            <CommonBtn
+                                                w={150}
+                                                h={40}
+                                                txt='Rendez-vous 📅🕒'
+                                                onClick={() => {
+                                                    navigation.navigate('BookAppointment', { medecin: item });
+                                                }}
+                                            />
+                                        </View>
+                                    )}
+                                    keyExtractor={(item) => item.user.cin}
                                 />
                             </View>
                         );
@@ -79,7 +101,6 @@ const Home = ({ navigation }) => {
                 }}
             />
             <View style={[styles.bottomView, { alignSelf: 'flex-end' }]}>
-
                 <TouchableOpacity
                     onPress={() => {
                         navigation.navigate('Pending');
@@ -90,7 +111,6 @@ const Home = ({ navigation }) => {
                     />
                 </TouchableOpacity>
             </View>
-
         </SafeAreaView>
     );
 };
@@ -135,29 +155,30 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         borderWidth: 0.2,
         margin: 10,
+        padding: 10,
+        alignItems: 'center',
     },
     docImg: {
         width: 60,
         height: 60,
         borderRadius: 30,
-        alignSelf: 'center',
-        marginTop: 20,
+        marginBottom: 10,
     },
     docName: {
         fontSize: 18,
         fontWeight: '700',
-        alignSelf: 'center',
         marginTop: 10,
+        textAlign: 'center',
     },
     docSpl: {
         fontSize: 14,
         marginTop: 5,
         fontWeight: '600',
-        alignSelf: 'center',
         color: 'green',
         backgroundColor: '#f2f2f2',
         padding: 5,
         borderRadius: 10,
+        textAlign: 'center',
     },
     bottomView: {
         width: '20%',
