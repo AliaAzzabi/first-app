@@ -1,4 +1,4 @@
-import { View, FlatList, TouchableOpacity, Text, Image, StyleSheet } from 'react-native';
+import { View, FlatList, TouchableOpacity, Text, Image, StyleSheet, TextInput } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import Header from '../components/Header';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,6 +9,7 @@ const Home = ({ navigation }) => {
     const [specialties, setSpecialties] = useState([]);
     const [medecins, setMedecins] = useState([]);
     const [selectedSpecialty, setSelectedSpecialty] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         fetch('http://192.168.1.15:5000/getAllspecialities')
@@ -28,20 +29,35 @@ const Home = ({ navigation }) => {
         ? medecins.filter(medecin => medecin.specialite.nom === selectedSpecialty)
         : medecins;
 
+    const searchedMedecins = searchTerm
+        ? filteredMedecins.filter(medecin => medecin.user.nomPrenom.toLowerCase().includes(searchTerm.toLowerCase()))
+        : filteredMedecins;
+
     return (
         <SafeAreaView style={styles.container}>
             <Header
-                title={'HealthBooker'}
-                icon={require('../image/logo.png')}
+                title={'Center santéPlus'}
+                icon={require('../image/logo1.png')}
             />
             <FlatList
-                data={[{ type: 'banner' }, { type: 'category' }, { type: 'doctors' }]}
+                data={[{ type: 'banner' }, { type: 'search' }, { type: 'category' }, { type: 'doctors' }]}
                 keyExtractor={(item, index) => index.toString()}
                 renderItem={({ item }) => {
                     if (item.type === 'banner') {
                         return (
                             <View>
                                 <Image source={require('../image/banner.jpg')} style={styles.banner} />
+                            </View>
+                        );
+                    } else if (item.type === 'search') {
+                        return (
+                            <View style={styles.searchContainer}>
+                                <TextInput
+                                    style={styles.searchInput}
+                                    placeholder="Rechercher..."
+                                    value={searchTerm}
+                                    onChangeText={setSearchTerm}
+                                />
                             </View>
                         );
                     } else if (item.type === 'category') {
@@ -74,7 +90,7 @@ const Home = ({ navigation }) => {
                                 <Text style={styles.heading}>Découvrez Nos Médecins</Text>
                                 <FlatList
                                     numColumns={2}
-                                    data={filteredMedecins}
+                                    data={searchedMedecins}
                                     renderItem={({ item }) => (
                                         <View style={styles.docItem}>
                                             <Image
@@ -128,6 +144,16 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         alignSelf: 'center',
         marginTop: 10,
+    },
+    searchContainer: {
+        padding: 10,
+    },
+    searchInput: {
+        height: 40,
+        borderColor: 'gray',
+        borderWidth: 1,
+        borderRadius: 5,
+        paddingLeft: 10,
     },
     heading: {
         color: '#000',

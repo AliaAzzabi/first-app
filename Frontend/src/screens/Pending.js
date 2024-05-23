@@ -1,43 +1,63 @@
-import {View, Text, StyleSheet, FlatList, Image} from 'react-native';
-import React from 'react';
+import { View, Text, StyleSheet, FlatList, Image, TextInput } from 'react-native';
+import React, { useState } from 'react';
 import Header from '../components/Header';
+
 const Pending = ({ navigation }) => {
+  const [cin, setCin] = useState('');
+  const [appointments, setAppointments] = useState([1, 1, 1, 1, 11]);
+
+  const filteredAppointments = appointments.filter(
+    appointment => appointment.cin && appointment.cin.includes(cin)
+  );
+
   return (
     <View style={styles.container}>
       <Header
-      
         icon={require('../image/back.png')}
         onPress={() => navigation.navigate('Home')}
         title={'Statut de votre Rendez-vous'}
       />
-      <View>
-        <FlatList
-          data={[1, 1, 1, 1, 11]}
-          renderItem={({item, index}) => {
-            return (
-              <View style={styles.itemView}>
-                <Image
-                  source={require('../image/doctor.png')}
-                  style={styles.docImage}
-                />
-                <View>
-                  <Text style={styles.name}>{'Doctor XYZ'}</Text>
-                  <Text style={styles.timing}>{'08:10PM'}</Text>
-                </View>
-                <Text style={styles.status}>{'En attente'}</Text>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Rechercher par CIN"
+        value={cin}
+        onChangeText={setCin}
+      />
+      <FlatList
+        data={filteredAppointments}
+        renderItem={({ item, index }) => {
+          return (
+            <View style={styles.itemView}>
+              <Image
+                source={require('../image/doctor.png')}
+                style={styles.docImage}
+              />
+              <View>
+                <Text style={styles.name}>{'Doctor XYZ'}</Text>
+                <Text style={styles.timing}>{'08:10PM'}</Text>
               </View>
-            );
-          }}
-        />
-      </View>
+              <Text style={styles.status}>{'En attente'}</Text>
+            </View>
+          );
+        }}
+      />
     </View>
   );
 };
 
 export default Pending;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  searchInput: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    borderRadius: 5,
+    margin: 10,
+    paddingLeft: 10,
   },
   itemView: {
     width: '94%',
@@ -71,7 +91,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#f2f2f2',
     padding: 5,
     color: 'orange',
-    
-    
   },
 });
