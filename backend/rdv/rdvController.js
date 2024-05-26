@@ -2,21 +2,23 @@ const DemandeRendezVous = require('../rdv/rdvModel');
 const Aide = require('../aide/aideshema'); 
 const Patient = require('../patient/patientshema');
 const Medecin = require('../medecin/medecinshema');
- 
+const multer = require('multer');
+const User = require("../models/userModel");
+const Image = require("../image/imagemodel");
+
 const createRendezVous = async (req, res) => {
   try {
-    const { date, time, patient, medecin, secretaire } = req.body;
+    const { date, time, patient, medecin, secretaire, status } = req.body;
 
     if (!date || !time || !patient || !medecin || !secretaire) {
       return res.status(400).json({ error: 'Toutes les informations du rendez-vous sont requises' });
     }
 
-     // Ajouter la vérification du format de l'email
-     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-     if (!emailRegex.test(patient.emaill)) {
-       return res.status(402).json({ error: 'Format d\'email invalide' });
-     }
- 
+    // Ajouter la vérification du format de l'email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(patient.emaill)) {
+      return res.status(402).json({ error: 'Format d\'email invalide' });
+    }
 
     let existingPatientByCIN = await Patient.findOne({ cin: patient.cin });
     if (existingPatientByCIN) {
@@ -50,6 +52,7 @@ const createRendezVous = async (req, res) => {
       patient: existingPatient._id,
       medecin,
       secretaire,
+      status: status || 'En attente' // Utilise la valeur fournie ou 'pending' par défaut
     });
 
     await demanderendezVous.save();
@@ -63,9 +66,8 @@ const createRendezVous = async (req, res) => {
 
 const createRendezVousCin = async (req, res) => {
   try {
-    const { date, time, cin, medecin, secretaire } = req.body;
+    const { date, time, cin, medecin, secretaire, status } = req.body;
 
-    console.log('backkk',req.body); 
     let existingPatientByCIN = await Patient.findOne({ cin });
 
     if (existingPatientByCIN) {
@@ -75,7 +77,7 @@ const createRendezVousCin = async (req, res) => {
         patient: existingPatientByCIN._id,
         medecin,
         secretaire, 
-
+        status: status || 'En attente' // Utilise la valeur fournie ou 'pending' par défaut
       });
 
       await demanderendezVous.save();
@@ -89,10 +91,6 @@ const createRendezVousCin = async (req, res) => {
     res.status(500).json({ error: 'Erreur interne du serveur' });
   }
 };
-
-
-
-
 
 const getAllRendezVous = async (req, res) => {
   try {
@@ -117,7 +115,6 @@ const getAllRendezVous = async (req, res) => {
       .populate('medecin') 
       .populate('secretaire'); 
 
-    
     res.status(200).json(demanderendezVous);
   } catch (err) {
     console.error(err);
@@ -125,17 +122,10 @@ const getAllRendezVous = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
 const getRendezVousById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    
     const rendezVous = await DemandeRendezVous.findById(id)
       .populate('patient') 
       .populate('medecin') 
@@ -152,17 +142,42 @@ const getRendezVousById = async (req, res) => {
   }
 };
 
-
-
-
-
+const getRDVByCIN = async (req, res) => {
+  try {
+    const { cin } = req.query; // Accessing the cin parameter correctly
+    if (!cin) {
+      return res.status(400).json({ error: 'CIN is required' });
+    }
+    const patient = await Patient.findOne({ cin });
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+    const appointments = await DemandeRendezVous.find({ patient: patient._id })
+      .populate({
+        path: 'patient',
+        select: 'cin nomPrenom email telephone notifier' 
+      })
+      .populate({
+        path: 'medecin',
+        select: 'nomPrenom',
+        populate: {
+          path: 'user',
+          select: 'nomPrenom' // Sélectionnez les champs que vous souhaitez afficher
+        }
+      })
+      .populate('secretaire');
+      
+    res.status(200).json(appointments);
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+};
 
 module.exports = {
   createRendezVous,
   getAllRendezVous,
-
+  getRDVByCIN,
   getRendezVousById,
   createRendezVousCin,
-
 };
-

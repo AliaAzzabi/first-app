@@ -8,7 +8,7 @@ const { getSpecialty, addSpecialty, updateSpecialty, deleteSpecialty, getSpecial
 const { getAide, addaides, updateAide, deleteAide, getAideById , GetAidesByMedecinId} = require('./aide/controlleraide');
 const {getMedecins,  updateMedecin, deleteMedecin, getMedecinById, addmed, getAidesByMedecinId} = require ('./medecin/controllermedecin');
 const  { getPatient, addPatient, updatePatient, deletePatient, gePatientById,StatistiquePatient , globalPatient} = require('./patient/controllerpatient');
-const {createRendezVous, createRendezVousCin,getAllRendezVous, getRendezVousById, }= require("./rdv/rdvController")
+const {createRendezVous, createRendezVousCin,getAllRendezVous, getRendezVousById,getRDVByCIN }= require("./rdv/rdvController")
 const requireAuth = require('./middleware/requireAuth');
 const router = express.Router();
 const Aide = require('./aide/aideshema');
@@ -58,7 +58,7 @@ router.post('/createRendezVousCin', createRendezVousCin);
 router.post('/creerrendezvous', createRendezVous);
 router.get('/getAllRendezVous',requireAuth, getAllRendezVous);
 router.get('/getRendezVousById/:id', getRendezVousById);
-  
+router.get('/rdvByCIN', getRDVByCIN);
 
 
 

@@ -19,6 +19,11 @@ const rendezVousSchema = new mongoose.Schema({
     ref: 'Medecin',
     required: true
   },
+  status: {
+    type: String,
+    required: true,
+    default: 'En attente' // Valeur par défaut pour le statut
+  },
   secretaire: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Aide',
