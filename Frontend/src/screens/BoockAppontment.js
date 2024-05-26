@@ -41,7 +41,7 @@ const BookAppointment = ({ navigation }) => {
     useEffect(() => {
         const fetchSecretaire = async () => {
             try {
-                const response = await fetch(`http://192.168.1.15:5000/getAidesByMedecinId/${medecin._id}`);
+                const response = await fetch(`http://192.168.208.66:5000/getAidesByMedecinId/${medecin._id}`);
                 const aides = await response.json();
                 if (aides.length > 0) {
                     setSecretaire(aides); // Assume there's only one secretary for simplicity
@@ -121,8 +121,8 @@ const BookAppointment = ({ navigation }) => {
         try {
             const response = await fetch(
               isNewPatient 
-                ? 'http://192.168.1.15:5000/creerrendezvous' 
-                : 'http://192.168.1.15:5000/createRendezVousCin',
+                ? 'http://192.168.208.66:5000/creerrendezvous' 
+                : 'http://192.168.208.66:5000/createRendezVousCin',
               {
                 method: 'POST',
                 headers: {
@@ -184,7 +184,7 @@ const BookAppointment = ({ navigation }) => {
                     onPress={() => navigation.navigate('Home')}
                     title={'Rendez-Vous 📅 '}
                 />
-                <Image source={{ uri: 'http://192.168.1.15:5000/' + medecin.image.filepath }}
+                <Image source={{ uri: 'http://192.168.208.66:5000/' + medecin.image.filepath }}
                     style={styles.docImg} />
                 <Text style={styles.name}>Dr. {medecin.user.nomPrenom}</Text>
                 <Text style={styles.spcl}>Docteur de {medecin.specialite.nom}</Text>

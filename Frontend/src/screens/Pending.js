@@ -1,14 +1,53 @@
-import { View, Text, StyleSheet, FlatList, Image, TextInput } from 'react-native';
 import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, Image, TextInput, TouchableOpacity } from 'react-native';
+import axios from 'axios';
 import Header from '../components/Header';
 
 const Pending = ({ navigation }) => {
   const [cin, setCin] = useState('');
-  const [appointments, setAppointments] = useState([1, 1, 1, 1, 11]);
+  const [appointments, setAppointments] = useState([]);
+  const [error, setError] = useState('');
 
-  const filteredAppointments = appointments.filter(
-    appointment => appointment.cin && appointment.cin.includes(cin)
-  );
+  const fetchAppointmentsByCIN = async () => {
+    if (!cin) {
+      setError('CIN est requis');
+      return;
+    }
+
+    try {
+      const response = await axios.get(`http://192.168.208.66:5000/rdvByCIN`, {
+        params: { cin: cin }
+      });
+      if (response.status === 200 && response.data.length > 0) {
+        setAppointments(response.data);
+        setError('');
+      } else {
+        setAppointments([]);
+        setError('Aucun rendez-vous trouvé');
+      }
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        setAppointments([]);
+        setError('Patient n\'existe pas');
+      } else {
+        setAppointments([]);
+        setError('Erreur lors de la récupération des rendez-vous');
+      }
+    }
+  };
+
+  const getStatusStyle = (status) => {
+    switch (status.toLowerCase()) {
+      case 'accepté':
+        return styles.statusAccepted;
+      case 'en attente':
+        return styles.statusPending;
+      case 'refusé':
+        return styles.statusRefused;
+      default:
+        return styles.statusDefault;
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -17,47 +56,77 @@ const Pending = ({ navigation }) => {
         onPress={() => navigation.navigate('Home')}
         title={'Statut de votre Rendez-vous'}
       />
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Rechercher par CIN"
-        value={cin}
-        onChangeText={setCin}
-      />
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Rechercher par CIN"
+          value={cin}
+          onChangeText={setCin}
+        />
+        <TouchableOpacity style={styles.searchButton} onPress={fetchAppointmentsByCIN}>
+          <Text style={styles.searchButtonText}>Rechercher</Text>
+        </TouchableOpacity>
+      </View>
+      {error && <Text style={styles.errorText}>{error}</Text>}
       <FlatList
-        data={filteredAppointments}
-        renderItem={({ item, index }) => {
-          return (
-            <View style={styles.itemView}>
-              <Image
-                source={require('../image/doctor.png')}
-                style={styles.docImage}
-              />
-              <View>
-                <Text style={styles.name}>{'Doctor XYZ'}</Text>
-                <Text style={styles.timing}>{'08:10PM'}</Text>
-              </View>
-              <Text style={styles.status}>{'En attente'}</Text>
+        data={appointments}
+        keyExtractor={(item) => item._id}
+        renderItem={({ item }) => (
+          <View style={styles.itemView}>
+            <Image
+              source={require('../image/doctor.png')}
+              style={styles.docImage}
+            />
+            <View>
+              <Text style={styles.name}>Dr.{item.medecin.user.nomPrenom}</Text>
+              <Text style={styles.timing}>
+                date : {
+                  `${new Date(item.date).getDate()}/${new Date(item.date).getMonth() + 1
+                  }/${new Date(item.date).getFullYear()}`
+                }
+              </Text>
+              <Text style={styles.timing}>
+                Heure : {
+                  `${new Date(item.date).getHours()
+                  }:${new Date(item.date).getMinutes()}`
+                }
+              </Text>
             </View>
-          );
-        }}
+            <Text style={[styles.status, getStatusStyle(item.status)]}>{item.status}</Text>
+          </View>
+        )}
       />
     </View>
   );
 };
 
-export default Pending;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: 10,
+  },
   searchInput: {
+    flex: 1,
     height: 40,
     borderColor: 'gray',
     borderWidth: 1,
     borderRadius: 5,
-    margin: 10,
     paddingLeft: 10,
+  },
+  searchButton: {
+    marginLeft: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: '#007BFF',
+    borderRadius: 5,
+  },
+  searchButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
   itemView: {
     width: '94%',
@@ -76,20 +145,41 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   name: {
-    fontSize: 18,
+    fontSize: 10,
     fontWeight: '600',
     marginLeft: 20,
   },
   timing: {
-    fontSize: 16,
+    fontSize: 10,
     marginLeft: 20,
     marginTop: 5,
   },
   status: {
-    marginLeft: 60,
+    marginLeft: 50,
     borderRadius: 10,
-    backgroundColor: '#f2f2f2',
     padding: 5,
-    color: 'orange',
+    textAlign: 'center',
+  },
+  statusAccepted: {
+    backgroundColor: '#d4edda',
+    color: '#155724',
+  },
+  statusPending: {
+    backgroundColor: '#fff3cd',
+    color: '#856404',
+  },
+  statusRefused: {
+    backgroundColor: '#f8d7da',
+    color: '#721c24',
+  },
+  statusDefault: {
+    backgroundColor: '#f2f2f2',
+    color: 'black',
+  },
+  errorText: {
+    color: 'red',
+    textAlign: 'center',
   },
 });
+
+export default Pending;
